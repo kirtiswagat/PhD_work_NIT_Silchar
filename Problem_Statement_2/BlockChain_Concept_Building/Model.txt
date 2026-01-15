@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+contract AIModelRegistry {
+    address public owner;
+
+    enum Role { None, Admin, HospitalVendor }
+
+    struct AIModel {
+        uint256 modelId;
+        string modelName;
+        string modelHash; // IPFS CID or other identifier
+        address uploader;
+        uint256 timestamp;
+    }
+
+    uint256 private modelCounter; // Auto-incrementing model ID
+    mapping(uint256 => AIModel) private models;  // Maps ID to AI model
+    mapping(address => Role) public userRoles;
+    mapping(address => bool) public whitelistedVendors;
+
+    event VendorWhitelisted(address indexed vendor);
+    event VendorRemoved(address indexed vendor);
+    event ModelStored(uint256 indexed modelId, string modelName, address indexed uploader);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not contract owner");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(userRoles[msg.sender] == Role.Admin, "Not an admin");
+        _;
+    }
+
+    modifier onlyWhitelistedVendor() {
+        require(userRoles[msg.sender] == Role.HospitalVendor && whitelistedVendors[msg.sender], "Not a whitelisted vendor");
+        _;
+    }
+
+    modifier onlyAuthorized(uint256 modelId) {
+        require(
+            userRoles[msg.sender] == Role.Admin || models[modelId].uploader == msg.sender,
+            "Not authorized to access this model"
+        );
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+        userRoles[msg.sender] = Role.Admin; // Owner is the first admin
+    }
+
+    function addAdmin(address _admin) external onlyOwner {
+        userRoles[_admin] = Role.Admin;
+    }
+
+    function whitelistVendor(address _vendor) external onlyAdmin {
+        userRoles[_vendor] = Role.HospitalVendor;
+        whitelistedVendors[_vendor] = true;
+        emit VendorWhitelisted(_vendor);
+    }
+
+    function removeVendor(address _vendor) external onlyAdmin {
+        userRoles[_vendor] = Role.None;
+        whitelistedVendors[_vendor] = false;
+        emit VendorRemoved(_vendor);
+    }
+
+    function storeModel(string memory modelName, string memory modelHash) external onlyWhitelistedVendor {
+        uint256 modelId = modelCounter++;
+        models[modelId] = AIModel(modelId, modelName, modelHash, msg.sender, block.timestamp);
+        emit ModelStored(modelId, modelName, msg.sender);
+    }
+
+    function getModel(uint256 modelId) external view onlyAuthorized(modelId) returns (string memory, string memory, address, uint256) {
+        AIModel memory model = models[modelId];
+        require(model.modelId == modelId, "Model does not exist");
+        return (model.modelName, model.modelHash, model.uploader, model.timestamp);
+    }
+}

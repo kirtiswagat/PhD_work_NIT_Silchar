@@ -1,0 +1,15 @@
+venv
+data/raw
+
+data/partitions/client_1/test
+data/partitions/client_2/test
+data/partitions/client_3/test
+
+data/partitions/client_1/train
+data/partitions/client_2/train
+data/partitions/client_3/train
+
+utils/__pycache__
+models/__pycache__
+federated/__pycache__
+data/__pycache__

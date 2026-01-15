@@ -1,0 +1,105 @@
+Here’s a focused explanation of the **Federated Learning** part in your code. This section highlights the *architecture*, *protocol*, and *key methods* related to distributing learning across clients and server.
+
+***
+
+## Federated Learning Structure
+
+**Key Components:**
+- `FederatedClient`: Represents each participant (client) who holds its own data and performs private model updates.
+- `FederatedServer`: Central aggregator that collects, averages, and redistributes model updates.
+
+***
+
+### 1. FederatedClient: Local Training Entity
+
+Each client does the following:
+- Receives the global model from the server.
+- Trains a local model on their respective data partition.
+- Computes weight updates (model parameters after local epochs).
+- Sends the updated weights back to the server.
+
+**Essentials:**
+- Local optimizer: `Adam`
+- Loss function: `CrossEntropyLoss` (label smoothing)
+- Uses mixed precision (`torch.cuda.amp`) if available.
+- Uses a custom data loader for local data batches.
+
+**Key Methods:**
+- `train_epochs()`: Trains the local model for several epochs and computes average loss and accuracy.
+- `evaluate()`: Tests the model on local validation data, returns all metrics.
+- `get_model_weights()`: Returns a deep copy of the local model’s parameters.
+- `set_model_weights(weights)`: Loads the server’s global model into the local model.
+
+***
+
+### 2. FederatedServer: Aggregation Coordinator
+
+The server orchestrates collaborative learning by:
+- Starting with a global model.
+- Sending the current global model to all clients at the beginning of each round.
+- Receiving all client-updated weights.
+- Aggregating those weights (using FedAvg: average weighted by client data size).
+- Updating the global model with the aggregated result.
+- Evaluating on a validation set to select the best-performing model.
+
+**Key Methods:**
+- `aggregate_weights(client_weights, client_sizes)`: Implements robust federated averaging. For each parameter:
+  - Performs a weighted sum of client parameters, weighted by respective client data sizes.
+  - Special handling for batch normalization statistics.
+- `get_global_weights()`: Returns the current server model’s weights.
+- `set_global_weights(weights)`: Loads new weights into the global model.
+
+***
+
+### 3. Federated Protocol: How It Works (Step-by-Step)
+
+1. **Initialization:** The server initializes a model and shares it with all clients.
+2. **Local Training (per round):**
+   - Each client updates the model using its own (private) data for a few local epochs.
+   - Each client sends its updated model parameters (weights) back to the server.
+3. **Aggregation (per round):**
+   - The server collects all client-updated models.
+   - Parameters are averaged (`FedAvg`) to form the new global model.
+   - The server then shares this updated global model with clients for the next round.
+4. **Repeat:** Steps 2 and 3 are repeated for the specified number of rounds.
+5. **Evaluation:** The final (best) server model is used for centralized evaluation and testing.
+
+***
+
+### 4. Why Federated?
+
+- **Data privacy:** Data never leaves the client—only model updates (parameters) do.
+- **Scalability & fairness:** Model benefits from diverse client data, reducing overfitting and increasing robustness.
+- **Practical:** Ideal for sensitive domains like medical imaging, where sharing patient data is restricted.
+
+***
+
+### 5. Code Structure: Federated Section
+
+#### Training Loop Pseudocode
+
+```python
+for each round in NUM_ROUNDS:
+    server sends current global model to all clients
+    for client in clients:
+        client loads global model
+        client trains on its local data for LOCAL_EPOCHS
+        client sends updated weights to server
+    server aggregates all client weights (FedAvg)
+    server updates global model
+    # Evaluate, save history, clear cache as needed
+```
+
+- Metrics and evaluation are done centrally (using validation/test sets).
+
+***
+
+## In Short
+
+- **Clients** locally improve the model on private data.
+- **Server** aggregates progress for all, without gathering the data.
+- All code handling communication, weight updating, and aggregation is abstracted in the `FederatedClient` and `FederatedServer` classes.
+
+If you need direct code snippets, diagrams, or a deeper breakdown of a method, let me know!
+
+[1] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/68331568/9a4dd51f-c780-4362-b121-27d3d3de646d/Federated_Learning_V4.py
